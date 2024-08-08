@@ -245,6 +245,21 @@ def init_seeds(seed=0, deterministic=False):
         os.environ['PYTHONHASHSEED'] = str(seed)
 
 
+def map_dicts(map_strs, d):
+    # Split map_strs into list of tuples
+    map_str_list = [map_str.split(',') for map_str in map_strs]
+    
+    for find_str, replace_str in map_str_list:
+        # Create a new dictionary with updated keys
+        mapped_dict = {
+            key.replace(f"model.{find_str}", f"model.{replace_str}"): value 
+            for key, value in d.items()
+        }
+        # Update d to the newly mapped dictionary
+        d = mapped_dict
+    
+    return d
+
 def intersect_dicts(da, db, exclude=()):
     # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
     return {k: v for k, v in da.items() if k in db and all(x not in k for x in exclude) and v.shape == db[k].shape}

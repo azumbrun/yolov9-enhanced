@@ -32,7 +32,7 @@ from utils.dataloaders import create_dataloader
 from utils.downloads import attempt_download, is_url
 from utils.general import (LOGGER, TQDM_BAR_FORMAT, check_amp, check_dataset, check_file, check_git_info,
                            check_git_status, check_img_size, check_requirements, check_suffix, check_yaml, colorstr,
-                           get_latest_run, increment_path, init_seeds, intersect_dicts, labels_to_class_weights,
+                           get_latest_run, increment_path, init_seeds, intersect_dicts, map_dicts, labels_to_class_weights,
                            labels_to_image_weights, methods, one_cycle, print_args, print_mutation, strip_optimizer,
                            yaml_save, one_flat_cycle)
 from utils.loggers import Loggers
@@ -52,9 +52,9 @@ GIT_INFO = None#check_git_info()
 
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze = \
+    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, layer_map = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
-        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze
+        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.layer_map
     callbacks.run('on_pretrain_routine_start')
 
     # Directories
@@ -111,6 +111,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
+        csd = map_dicts(layer_map, csd) if len(layer_map) > 0 else csd  # layer remapping
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(csd, strict=False)  # load
         LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
@@ -477,6 +478,7 @@ def parse_opt(known=False):
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     parser.add_argument('--min-items', type=int, default=0, help='Experimental')
     parser.add_argument('--close-mosaic', type=int, default=0, help='Experimental')
+    parser.add_argument('--layer_map', type=str, nargs="*", default=[], help='Layer mapping. Format is old_number1,new_number1 old_number2,new_number2 (default: [])')
 
     # Logger arguments
     parser.add_argument('--entity', default=None, help='Entity')
