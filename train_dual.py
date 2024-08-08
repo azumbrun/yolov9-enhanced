@@ -114,7 +114,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         csd = map_dicts(layer_map, csd) if len(layer_map) > 0 else csd  # layer remapping
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(csd, strict=False)  # load
-        LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
+        LOGGER.info(f'Transferred {len(csd)}/{len(ckpt["model"].float().state_dict())} items from {weights}. {len(model.state_dict()) - len(csd)} are being newly initialized.')  # report
     else:
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
     amp = check_amp(model)  # check AMP
