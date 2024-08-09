@@ -227,13 +227,14 @@ class DualDDetect(nn.Module):
         if self.training:
             return [d1, d2]
         elif self.dynamic or self.shape != shape:
-            self.anchors, self.strides = (d1.transpose(0, 1) for d1 in make_anchors(d1, self.stride, 0.5))
+            self.anchors1, self.strides1 = (d1.transpose(0, 1) for d1 in make_anchors(d1, self.stride, 0.5))
+            self.anchors2, self.strides2 = (d2.transpose(0, 1) for d2 in make_anchors(d2, self.stride, 0.5))
             self.shape = shape
 
         box, cls = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        dbox = dist2bbox(self.dfl(box), self.anchors1.unsqueeze(0), xywh=True, dim=1) * self.strides1
         box2, cls2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox2 = dist2bbox(self.dfl2(box2), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        dbox2 = dist2bbox(self.dfl2(box2), self.anchors2.unsqueeze(0), xywh=True, dim=1) * self.strides2
         y = [torch.cat((dbox, cls.sigmoid()), 1), torch.cat((dbox2, cls2.sigmoid()), 1)]
         return y if self.export else (y, [d1, d2])
         #y = torch.cat((dbox2, cls2.sigmoid()), 1)
