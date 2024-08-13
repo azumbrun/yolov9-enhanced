@@ -32,7 +32,7 @@ from utils.dataloaders import create_dataloader
 from utils.downloads import attempt_download, is_url
 from utils.general import (LOGGER, TQDM_BAR_FORMAT, check_amp, check_dataset, check_file, check_git_info,
                            check_git_status, check_img_size, check_requirements, check_suffix, check_yaml, colorstr,
-                           get_latest_run, increment_path, init_seeds, intersect_dicts, map_dicts, labels_to_class_weights,
+                           get_latest_run, increment_path, init_seeds, intersect_dicts, map_dicts, insert_weights, labels_to_class_weights,
                            labels_to_image_weights, methods, one_cycle, print_args, print_mutation, strip_optimizer,
                            yaml_save, one_flat_cycle)
 from utils.loggers import Loggers
@@ -52,9 +52,9 @@ GIT_INFO = None#check_git_info()
 
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, layer_map = \
+    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, layer_map, weight_insert = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
-        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.layer_map
+        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.layer_map, opt.weight_insert
     callbacks.run('on_pretrain_routine_start')
 
     # Directories
@@ -113,8 +113,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
         csd = map_dicts(layer_map, csd) if len(layer_map) > 0 else csd  # layer remapping
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
+        loaded_from_pretrained = len(csd)
+        csd = insert_weights(weight_insert, csd) if weight_insert else csd  # insert weights
+        loaded_from_weight_insert = len(csd) - loaded_from_pretrained
+        loaded_weights = len(csd)
         model.load_state_dict(csd, strict=False)  # load
-        LOGGER.info(f'Transferred {len(csd)}/{len(ckpt["model"].float().state_dict())} items from {weights}. {len(model.state_dict()) - len(csd)} are being newly initialized.')  # report
+        LOGGER.info(f'Transferred {loaded_from_pretrained}/{len(ckpt["model"].float().state_dict())} items from {weights}.')
+        LOGGER.info(f'Inserted {loaded_from_weight_insert} items from {weight_insert}.')
+        LOGGER.info(f'{len(model.state_dict()) - loaded_weights} weights are being newly initialized.')  # report
     else:
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
     amp = check_amp(model)  # check AMP
@@ -479,6 +485,7 @@ def parse_opt(known=False):
     parser.add_argument('--min-items', type=int, default=0, help='Experimental')
     parser.add_argument('--close-mosaic', type=int, default=0, help='Experimental')
     parser.add_argument('--layer_map', type=str, nargs="*", default=[], help='Layer mapping. Format is old_number1,new_number1 old_number2,new_number2 (default: [])')
+    parser.add_argument('--weight_insert', type=str, nargs="*", default=[], help='Weight insert. Format is pt_file1,name_in_file1,layer_number1 pt_file2,name_in_file2,layer_number2 (default: [])')
 
     # Logger arguments
     parser.add_argument('--entity', default=None, help='Entity')

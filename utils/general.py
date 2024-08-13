@@ -260,6 +260,32 @@ def map_dicts(map_strs, d):
     
     return d
 
+
+def insert_weights(insert_strs, d):
+    # Split insert_str into list of tuples
+    insert_str_list = [insert_str.split(',') for insert_str in insert_strs]
+
+    for weight_file, find_key, replace_key in insert_str_list:
+        replace_key = f"model.{replace_key}"
+        # Load the weights from the weight file
+        weights = torch.load(weight_file, map_location='cpu')
+        # Create a new dictionary with updated keys
+        replaced_dict = {
+            key.replace(find_key, replace_key): value 
+            for key, value in weights.items()
+            if find_key in key
+        }
+        # Sort replaced_dict alphabetically by key
+        replaced_dict = dict(sorted(replaced_dict.items()))
+        # Insert the keys from replaced_dict into d if they don't already exist
+        # If they do exist, replace the values in d with the values from replaced_dict
+        d = {**d, **replaced_dict}
+        # Make sure the keys are ordered by model.0, model.1, etc.
+        d = dict(sorted(d.items(), key=lambda x: int(x[0].split('.')[1]) if x[0].split('.')[1].isdigit() else 0))
+    
+    return d
+
+
 def intersect_dicts(da, db, exclude=()):
     # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
     return {k: v for k, v in da.items() if k in db and all(x not in k for x in exclude) and v.shape == db[k].shape}
