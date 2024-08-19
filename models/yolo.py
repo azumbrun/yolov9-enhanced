@@ -580,7 +580,7 @@ class BaseModel(nn.Module):
 
 class DetectionModel(BaseModel):
     # YOLO detection model
-    def __init__(self, cfg='yolo.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
+    def __init__(self, cfg='yolo.yaml', ch=3, imgsz=256, nc=None, anchors=None):  # model, input channels, number of classes
         super().__init__()
         if isinstance(cfg, dict):
             self.yaml = cfg  # model dict
@@ -605,7 +605,7 @@ class DetectionModel(BaseModel):
         # Build strides, anchors
         m = self.model[-1]  # Detect()
         if isinstance(m, (Detect, DDetect, Segment, DSegment, Panoptic)):
-            s = 256  # 2x min stride
+            s = imgsz  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, DSegment, Panoptic)) else self.forward(x)
             m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
@@ -614,7 +614,7 @@ class DetectionModel(BaseModel):
             self.stride = m.stride
             m.bias_init()  # only run once
         if isinstance(m, (DualDetect, TripleDetect, DualDDetect, TripleDDetect, DualDSegment)):
-            s = 256  # 2x min stride
+            s = imgsz  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0][0] if isinstance(m, (DualDSegment)) else self.forward(x)[0]
             m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
