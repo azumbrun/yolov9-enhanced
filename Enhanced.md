@@ -1,0 +1,3 @@
+# Autoencoder Example
+
+With these modifications to the YOLOv9 code, a lot of customization in the YAML model format is available. For example, look at `models/detect/yolov9-c_experiment_4.yaml` (compare with `models/detect/yolov9-c.yaml`) for a model with autoencoders before each detection layer. Specifically, for each pre-detection layer (16, 19, and 22), there is a Conv2d layer to downscale the output followed by a ConvTranspose2d layer with the same parameters to upscale it to its original size. The YAML model format is `[input_layer_#, number_of_repetitions, layer_type, layer_arguments]` where, for Conv2d or ConvTranspose2d layers (the only two types I added), `layer_arguments` is `[out_channels, kernel_size, stride, padding]`.
