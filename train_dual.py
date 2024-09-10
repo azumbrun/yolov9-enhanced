@@ -92,7 +92,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Config
     plots = not evolve and not opt.noplots  # create plots
     cuda = device.type != 'cpu'
-    init_seeds(opt.seed + 1 + RANK, deterministic=True)
+    if not opt.non_deterministic:
+        init_seeds(opt.seed + 1 + RANK, deterministic=True)
+    else:
+        random_seed = (int(time.time() * 1000) ^ int.from_bytes(os.urandom(8), byteorder="big")) % (2**32)
+        init_seeds(random_seed, deterministic=False)
     with torch_distributed_zero_first(LOCAL_RANK):
         data_dict = data_dict or check_dataset(data)  # check if None
     train_path, val_path = data_dict['train'], data_dict['val']
@@ -486,6 +490,7 @@ def parse_opt(known=False):
     parser.add_argument('--close-mosaic', type=int, default=0, help='Experimental')
     parser.add_argument('--layer_map', type=str, nargs="*", default=[], help='Layer mapping. Format is old_number1,new_number1 old_number2,new_number2 (default: [])')
     parser.add_argument('--weight_insert', type=str, nargs="*", default=[], help='Weight insert. Format is pt_file1,name_in_file1,layer_number1 pt_file2,name_in_file2,layer_number2 (default: [])')
+    parser.add_argument('--non_deterministic', action='store_true', help='Non deterministic training')
 
     # Logger arguments
     parser.add_argument('--entity', default=None, help='Entity')
