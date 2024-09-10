@@ -271,6 +271,42 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f'Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n'
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
+
+    # Evaluate initial model state
+    if opt.val_first:
+        if RANK in {-1, 0}:
+            # mAP
+            ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
+            if not noval:  # Calculate mAP
+                results, maps, _ = validate.run(data_dict,
+                                                batch_size=batch_size // WORLD_SIZE * 2,
+                                                imgsz=imgsz,
+                                                half=amp,
+                                                model=ema.ema,
+                                                single_cls=single_cls,
+                                                dataloader=val_loader,
+                                                save_dir=save_dir,
+                                                plots=False,
+                                                callbacks=callbacks,
+                                                compute_loss=compute_loss)
+
+            # Save model
+            if not nosave:  # if save
+                ckpt = {
+                    'epoch': "initial",
+                    'best_fitness': 0,
+                    'model': deepcopy(de_parallel(model)).half(),
+                    'ema': deepcopy(ema.ema).half(),
+                    'updates': ema.updates,
+                    'optimizer': optimizer.state_dict(),
+                    'opt': vars(opt),
+                    'git': GIT_INFO,  # {remote, branch, commit} if a git repo
+                    'date': datetime.now().isoformat()}
+
+                # Save initial weights
+                torch.save(ckpt, w / 'initial.pt')
+                del ckpt
+
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
         model.train()
@@ -491,6 +527,7 @@ def parse_opt(known=False):
     parser.add_argument('--layer_map', type=str, nargs="*", default=[], help='Layer mapping. Format is old_number1,new_number1 old_number2,new_number2 (default: [])')
     parser.add_argument('--weight_insert', type=str, nargs="*", default=[], help='Weight insert. Format is pt_file1,name_in_file1,layer_number1 pt_file2,name_in_file2,layer_number2 (default: [])')
     parser.add_argument('--non_deterministic', action='store_true', help='Non deterministic training')
+    parser.add_argument('--val_first', action='store_true', help='Validation of inital (randomized) model weights before training')
 
     # Logger arguments
     parser.add_argument('--entity', default=None, help='Entity')
